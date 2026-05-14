@@ -1,5 +1,4 @@
-from datetime import datetime
-from models import RiskAssessment
+from models import EnforcementResult, RiskAssessment
 from typing import List
 
 # In-memory audit log (persiste mientras el contenedor corre)
@@ -19,6 +18,28 @@ def log_assessment(assessment: RiskAssessment) -> dict:
         "decision": assessment.decision,
         "reasoning": assessment.reasoning,
         "flags": assessment.flags,
+    }
+    _audit_log.append(entry)
+    return entry
+
+
+def log_enforcement(result: EnforcementResult) -> dict:
+    entry = {
+        "id": f"evt-{len(_audit_log) + 1}",
+        "timestamp": result.enforced_at,
+        "audit_type": "enforcement",
+        "user": result.event.user,
+        "role": result.event.role,
+        "department": result.event.department,
+        "action": result.event.action,
+        "resource": result.event.resource,
+        "risk_score": result.risk_score,
+        "analyst_decision": result.analyst_decision,
+        "decision": result.final_decision,
+        "requires_human_approval": result.requires_human_approval,
+        "reasoning": result.reasoning,
+        "flags": result.flags,
+        "enforcement_event": result.enforcement_event,
     }
     _audit_log.append(entry)
     return entry
