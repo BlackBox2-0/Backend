@@ -32,7 +32,6 @@ def get_stats() -> dict:
     total = len(_audit_log)
     if total == 0:
         return {"total": 0, "blocked": 0, "escalated": 0, "allowed": 0, "avg_risk": 0}
-
     blocked = sum(1 for e in _audit_log if e["decision"] == "BLOCK")
     escalated = sum(1 for e in _audit_log if e["decision"] == "ESCALATE")
     allowed = sum(1 for e in _audit_log if e["decision"] == "ALLOW")
