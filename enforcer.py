@@ -59,4 +59,4 @@ def _build_reasoning(
     else:
         prefix = "Final decision ESCALATE: human approval is required before continuing."
 
-    return f"{prefix} Analyst decision was {assessment.decision}. {assessment.reasoning}"
+    return f"{prefix} Analyst decision was {assessment.decision.value}. {assessment.reasoning}"

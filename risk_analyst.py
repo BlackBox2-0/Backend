@@ -7,11 +7,16 @@ import httpx
 from models import EnterpriseEvent, RiskAssessment, RiskDecision
 
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+LOCAL_MODE = "local"
+PLACEHOLDER_KEYS = {"", "your_gemini_api_key_here"}
 
 
 async def assess_risk(event: EnterpriseEvent) -> RiskAssessment:
+    if os.getenv("RISK_ANALYST_MODE", "").lower() == LOCAL_MODE:
+        return assess_risk_locally(event)
+
     api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
+    if not api_key or api_key in PLACEHOLDER_KEYS:
         raise ValueError("GEMINI_API_KEY not set")
 
     prompt = f"""You are an enterprise security AI. Analyze this internal action and assess its risk.
@@ -66,4 +71,41 @@ Rules:
         reasoning=result["reasoning"],
         flags=result.get("flags", []),
         assessed_at=datetime.utcnow().isoformat()
+    )
+
+
+def assess_risk_locally(event: EnterpriseEvent) -> RiskAssessment:
+    score = 0.15
+    flags: list[str] = []
+    action = event.action.value
+    context = (event.context or "").lower()
+    resource = event.resource.lower()
+
+    if action in {"DATA_EXPORT", "MASS_DELETE", "PRIVILEGE_ESCALATION"}:
+        score += 0.35
+        flags.append(action.lower())
+
+    if "finance" in event.department.lower() or "customer" in resource:
+        score += 0.2
+        flags.append("sensitive_data")
+
+    if "2am" in context or "after hours" in context or "unusual" in context:
+        score += 0.2
+        flags.append("unusual_context")
+
+    score = min(round(score, 2), 1.0)
+    if score >= 0.8:
+        decision = RiskDecision.BLOCK
+    elif score >= 0.6:
+        decision = RiskDecision.ESCALATE
+    else:
+        decision = RiskDecision.ALLOW
+
+    return RiskAssessment(
+        event=event,
+        risk_score=score,
+        decision=decision,
+        reasoning="Local development risk assessment based on action, department, resource, and context.",
+        flags=sorted(set(flags)),
+        assessed_at=datetime.utcnow().isoformat(),
     )
