@@ -19,7 +19,42 @@ async def assess_risk(event: EnterpriseEvent) -> RiskAssessment:
     if not api_key or api_key in PLACEHOLDER_KEYS:
         raise ValueError("GEMINI_API_KEY not set")
 
-    prompt = f"""You are an enterprise security AI. Analyze this internal action and assess its risk.
+    prompt = _build_prompt(event)
+
+    payload = {
+        "model": "gemini-2.5-flash",
+        "messages": [
+            {"role": "user", "content": prompt}
+        ],
+        "response_format": {"type": "json_object"}
+    }
+
+    async with httpx.AsyncClient(timeout=30) as client:
+        response = await client.post(
+            GEMINI_URL,
+            json=payload,
+            headers={"Authorization": f"Bearer {api_key}"}
+        )
+        response.raise_for_status()
+        data = response.json()
+
+    raw = data["choices"][0]["message"]["content"]
+    result = json.loads(raw)
+    model_decision = RiskDecision(result["decision"])
+
+    return RiskAssessment(
+        event=event,
+        risk_score=result["risk_score"],
+        decision=model_decision,
+        reasoning=result["reasoning"],
+        flags=result.get("flags", []),
+        assessed_at=datetime.utcnow().isoformat(),
+        model_recommendation=model_decision,
+    )
+
+
+def _build_prompt(event: EnterpriseEvent) -> str:
+    return f"""You are an enterprise security AI. Analyze this internal action and assess its risk.
 
 Event details:
 - User: {event.user}
@@ -43,35 +78,6 @@ Rules:
 - risk_score >= 0.6 -> decision must be ESCALATE
 - risk_score < 0.6 -> decision must be ALLOW
 - flags are specific security concerns detected (empty list if none)"""
-
-    payload = {
-        "model": "gemini-2.5-flash",
-        "messages": [
-            {"role": "user", "content": prompt}
-        ],
-        "response_format": {"type": "json_object"}
-    }
-
-    async with httpx.AsyncClient(timeout=30) as client:
-        response = await client.post(
-            GEMINI_URL,
-            json=payload,
-            headers={"Authorization": f"Bearer {api_key}"}
-        )
-        response.raise_for_status()
-        data = response.json()
-
-    raw = data["choices"][0]["message"]["content"]
-    result = json.loads(raw)
-
-    return RiskAssessment(
-        event=event,
-        risk_score=result["risk_score"],
-        decision=RiskDecision(result["decision"]),
-        reasoning=result["reasoning"],
-        flags=result.get("flags", []),
-        assessed_at=datetime.utcnow().isoformat()
-    )
 
 
 def assess_risk_locally(event: EnterpriseEvent) -> RiskAssessment:
@@ -108,4 +114,5 @@ def assess_risk_locally(event: EnterpriseEvent) -> RiskAssessment:
         reasoning="Local development risk assessment based on action, department, resource, and context.",
         flags=sorted(set(flags)),
         assessed_at=datetime.utcnow().isoformat(),
+        model_recommendation=decision,
     )

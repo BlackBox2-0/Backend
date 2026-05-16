@@ -108,6 +108,41 @@ pip install -r requirements.txt
 uvicorn main:app --reload
 ```
 
+### Base de datos
+
+El backend ahora soporta SQLite o PostgreSQL para persistencia y reportes.
+
+- Modo local simple: `sqlite:///backend/blackbox.db`
+- Modo reportes / DataGrip: PostgreSQL mediante `DATABASE_URL`
+
+Tablas principales:
+
+- `collected_events`
+- `activity_observations`
+- `productivity_detections`
+- `enforcement_events`
+- `audit_log`
+- `orchestration_runs`
+
+### Levantar PostgreSQL + backend con Docker Compose
+
+```bash
+cd backend
+docker compose up --build
+```
+
+Con eso:
+
+- Backend: `http://localhost:8000`
+- PostgreSQL:
+  - Host: `localhost`
+  - Port: `5432`
+  - Database: `blackbox`
+  - User: `blackbox_user`
+  - Password: `blackbox_pass`
+
+Puedes conectarte desde DataGrip usando esos datos.
+
 ### Componente Go
 
 ```bash

@@ -2,10 +2,11 @@ from datetime import datetime
 
 from activity_monitor import get_activity_summary, monitor_collected_event
 from collector import collect_event
+from database import fetch_all, insert_record, next_id
 from enforcer import enforce_assessment
 from models import CollectorEventInput, OrchestrationResult
 from productivity_detector import detect_productivity
-from risk_analyst import assess_risk
+from risk_engine import assess_risk
 
 _orchestration_runs: list[OrchestrationResult] = []
 
@@ -21,7 +22,7 @@ async def orchestrate_event(incoming: CollectorEventInput) -> OrchestrationResul
     enforcement = enforce_assessment(risk_assessment)
 
     result = OrchestrationResult(
-        id=f"orc-{len(_orchestration_runs) + 1}",
+        id=next_id("orchestration_runs", "orc"),
         source=incoming.source,
         collected_event=collected_event,
         activity=activity,
@@ -31,10 +32,25 @@ async def orchestrate_event(incoming: CollectorEventInput) -> OrchestrationResul
         completed_at=datetime.utcnow().isoformat(),
     )
     _orchestration_runs.append(result)
+    insert_record(
+        "orchestration_runs",
+        {
+            "id": result.id,
+            "source": result.source,
+            "user": result.collected_event.normalized_event.user,
+            "action": result.collected_event.normalized_event.action.value,
+            "resource": result.collected_event.normalized_event.resource,
+            "completed_at": result.completed_at,
+            "payload_json": result.model_dump_json(),
+        },
+    )
     return result
 
 
 def get_orchestration_runs() -> list[OrchestrationResult]:
+    rows = fetch_all("orchestration_runs", "completed_at DESC")
+    if rows:
+        return [OrchestrationResult.model_validate_json(row["payload_json"]) for row in rows]
     return list(reversed(_orchestration_runs))
 
 

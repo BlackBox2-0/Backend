@@ -3,6 +3,7 @@ import pytest
 import activity_monitor
 import audit
 import collector
+import database
 import enforcer
 import orchestrator
 import productivity_detector
@@ -17,6 +18,7 @@ def clear_in_memory_state():
     enforcer._enforcement_events.clear()
     audit._audit_log.clear()
     orchestrator._orchestration_runs.clear()
+    database.clear_all_tables()
     yield
 
 

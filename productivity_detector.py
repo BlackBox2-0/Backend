@@ -1,6 +1,7 @@
 from datetime import datetime
 from urllib.parse import urlparse
 
+from database import fetch_all, insert_record, next_id
 from models import (
     ActivityObservation,
     ActivitySummary,
@@ -34,7 +35,7 @@ def detect_productivity(
     score = _score_from_decision(decision)
 
     detection = ProductivityDetection(
-        id=f"prd-{len(_productivity_detections) + 1}",
+        id=next_id("productivity_detections", "prd"),
         user=event.user,
         decision=decision,
         score=score,
@@ -45,6 +46,17 @@ def detect_productivity(
         summary=summary,
     )
     _productivity_detections.append(detection)
+    insert_record(
+        "productivity_detections",
+        {
+            "id": detection.id,
+            "user": detection.user,
+            "decision": detection.decision.value,
+            "score": detection.score,
+            "observed_at": detection.observed_at,
+            "payload_json": detection.model_dump_json(),
+        },
+    )
     return detection
 
 
@@ -54,7 +66,7 @@ def detect_productivity_from_summary(summary: ActivitySummary) -> ProductivityDe
     score = _score_from_decision(decision)
 
     detection = ProductivityDetection(
-        id=f"prd-{len(_productivity_detections) + 1}",
+        id=next_id("productivity_detections", "prd"),
         user=summary.user,
         decision=decision,
         score=score,
@@ -64,14 +76,30 @@ def detect_productivity_from_summary(summary: ActivitySummary) -> ProductivityDe
         summary=summary,
     )
     _productivity_detections.append(detection)
+    insert_record(
+        "productivity_detections",
+        {
+            "id": detection.id,
+            "user": detection.user,
+            "decision": detection.decision.value,
+            "score": detection.score,
+            "observed_at": detection.observed_at,
+            "payload_json": detection.model_dump_json(),
+        },
+    )
     return detection
 
 
 def get_productivity_detections(user: str | None = None) -> list[ProductivityDetection]:
-    detections = _productivity_detections
+    rows = fetch_all("productivity_detections", "observed_at DESC")
+    detections = (
+        [ProductivityDetection.model_validate_json(row["payload_json"]) for row in rows]
+        if rows
+        else list(reversed(_productivity_detections))
+    )
     if user:
         detections = [item for item in detections if item.user == user]
-    return list(reversed(detections))
+    return detections
 
 
 def _collect_signals(

@@ -2,6 +2,7 @@
 from datetime import datetime
 from typing import Any
 
+from database import dump_json, fetch_all, insert_record, next_id
 from models import CollectedEvent, CollectorEventInput, EnterpriseEvent, EventType
 
 _collected_events: list[CollectedEvent] = []
@@ -33,17 +34,37 @@ def collect_event(incoming: CollectorEventInput) -> CollectedEvent:
     normalized_event = _normalize_event(raw_event)
 
     collected = CollectedEvent(
-        id=f"col-{len(_collected_events) + 1}",
+        id=next_id("collected_events", "col"),
         source=incoming.source or "api",
         normalized_event=normalized_event,
         raw_event=raw_event,
         received_at=datetime.utcnow().isoformat(),
     )
     _collected_events.append(collected)
+    insert_record(
+        "collected_events",
+        {
+            "id": collected.id,
+            "source": collected.source,
+            "user": normalized_event.user,
+            "role": normalized_event.role,
+            "department": normalized_event.department,
+            "action": normalized_event.action.value,
+            "resource": normalized_event.resource,
+            "context": normalized_event.context,
+            "event_timestamp": normalized_event.timestamp,
+            "received_at": collected.received_at,
+            "raw_event_json": dump_json(raw_event),
+            "payload_json": collected.model_dump_json(),
+        },
+    )
     return collected
 
 
 def get_collected_events() -> list[CollectedEvent]:
+    rows = fetch_all("collected_events", "received_at DESC")
+    if rows:
+        return [CollectedEvent.model_validate_json(row["payload_json"]) for row in rows]
     return list(reversed(_collected_events))
 
 

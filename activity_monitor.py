@@ -2,6 +2,7 @@ from collections import Counter
 from datetime import datetime
 from urllib.parse import urlparse
 
+from database import fetch_all, insert_record, next_id
 from models import ActivityObservation, ActivitySummary, CollectedEvent, EnterpriseEvent
 
 _activity_observations: list[ActivityObservation] = []
@@ -29,11 +30,14 @@ def monitor_event(event: EnterpriseEvent, source: str = "api") -> ActivityObserv
 
 
 def get_activity_observations() -> list[ActivityObservation]:
+    rows = fetch_all("activity_observations", "observed_at DESC")
+    if rows:
+        return [ActivityObservation.model_validate_json(row["payload_json"]) for row in rows]
     return list(reversed(_activity_observations))
 
 
 def get_activity_summary(user: str | None = None) -> list[ActivitySummary]:
-    observations = _activity_observations
+    observations = get_activity_observations()
     if user:
         observations = [obs for obs in observations if obs.user == user]
 
@@ -47,8 +51,8 @@ def _build_observation(
     source: str,
 ) -> ActivityObservation:
     timestamp = event.timestamp or datetime.utcnow().isoformat()
-    return ActivityObservation(
-        id=f"act-{len(_activity_observations) + 1}",
+    observation = ActivityObservation(
+        id=next_id("activity_observations", "act"),
         event_id=event_id,
         source=source,
         user=event.user,
@@ -60,6 +64,24 @@ def _build_observation(
         event_timestamp=timestamp,
         observed_at=datetime.utcnow().isoformat(),
     )
+    insert_record(
+        "activity_observations",
+        {
+            "id": observation.id,
+            "event_id": observation.event_id,
+            "source": observation.source,
+            "user": observation.user,
+            "role": observation.role,
+            "department": observation.department,
+            "action": observation.action,
+            "resource": observation.resource,
+            "system": observation.system,
+            "event_timestamp": observation.event_timestamp,
+            "observed_at": observation.observed_at,
+            "payload_json": observation.model_dump_json(),
+        },
+    )
+    return observation
 
 
 def _summarize_user(

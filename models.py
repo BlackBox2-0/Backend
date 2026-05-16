@@ -1,5 +1,5 @@
 from pydantic import BaseModel, ConfigDict, Field
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 from enum import Enum
 from datetime import datetime
 
@@ -43,6 +43,17 @@ class CollectorEventInput(BaseModel):
 
     source: str = "api"
     payload: Optional[dict[str, Any]] = None
+
+
+class AgentTestInput(BaseModel):
+    source: Optional[str] = "dashboard"
+    user: Optional[str] = None
+    role: Optional[str] = None
+    department: Optional[str] = None
+    action: Optional[str] = None
+    resource: Optional[str] = None
+    context: Optional[str] = None
+    timestamp: Optional[str] = None
 
 
 class CollectedEvent(BaseModel):
@@ -94,6 +105,14 @@ class ProductivityDetection(BaseModel):
     summary: ActivitySummary | None = None
 
 
+class PolicyDecision(BaseModel):
+    model_recommendation: RiskDecision
+    policy_rule_matched: Optional[str]
+    final_decision: RiskDecision
+    final_decision_source: Literal["model", "policy", "human"]
+    policy_version: str
+
+
 class RiskAssessment(BaseModel):
     event: EnterpriseEvent
     risk_score: float
@@ -101,6 +120,9 @@ class RiskAssessment(BaseModel):
     reasoning: str
     flags: list[str]
     assessed_at: str
+    model_recommendation: RiskDecision | None = None
+    policy_decision: PolicyDecision | None = None
+    executive_summary: str | None = None
 
 
 class EnforcementResult(BaseModel):
@@ -113,6 +135,8 @@ class EnforcementResult(BaseModel):
     flags: list[str]
     enforcement_event: dict[str, Any]
     enforced_at: str
+    policy_decision: PolicyDecision | None = None
+    executive_summary: str | None = None
 
 
 class OrchestrationResult(BaseModel):
@@ -124,3 +148,49 @@ class OrchestrationResult(BaseModel):
     risk_assessment: RiskAssessment
     enforcement: EnforcementResult
     completed_at: str
+
+
+class CompanyUser(BaseModel):
+    id: str
+    username: str
+    name: str
+    email: str
+    title: str
+    department: str
+    level: str
+    manager_id: str | None = None
+
+
+class IncidentActionInput(BaseModel):
+    incident_title: str
+    incident_type: str
+    affected_user: str
+    department: str
+    resource: str
+    severity: str | None = None
+    requested_by: str = "Alejandro Reyes"
+
+
+class IncidentActionResult(BaseModel):
+    id: str
+    action_type: str
+    status: str
+    incident_title: str
+    incident_type: str
+    affected_user: str
+    department: str
+    requested_by: str
+    assigned_to: CompanyUser | None = None
+    escalation_chain: list[CompanyUser] = Field(default_factory=list)
+    current_step: int = 0
+    approvals_completed: list[CompanyUser] = Field(default_factory=list)
+    resolved_by: CompanyUser | None = None
+    resolved_at: str | None = None
+    resolution_note: str | None = None
+    notes: str
+    created_at: str
+
+
+class IncidentDecisionInput(BaseModel):
+    approver_username: str | None = None
+    comment: str | None = None

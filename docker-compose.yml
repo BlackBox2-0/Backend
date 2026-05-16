@@ -1,0 +1,32 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: blackbox-postgres
+    environment:
+      POSTGRES_DB: blackbox
+      POSTGRES_USER: blackbox_user
+      POSTGRES_PASSWORD: blackbox_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - blackbox_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U blackbox_user -d blackbox"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: .
+    container_name: sentineldoc-backend
+    environment:
+      DATABASE_URL: postgresql://blackbox_user:blackbox_pass@postgres:5432/blackbox
+      RISK_ANALYST_MODE: local
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  blackbox_postgres_data:
